@@ -1,0 +1,66 @@
+{
+  "title": "Landvoice CSV Exporter",
+  "type": "object",
+  "schemaVersion": 1,
+  "properties": {
+    "email": {
+      "title": "Email",
+      "type": "string",
+      "editor": "textfield",
+      "description": "Single account. Ignored when 'accounts' is set."
+    },
+    "password": {
+      "title": "Password",
+      "type": "string",
+      "editor": "textfield",
+      "isSecret": true
+    },
+    "accounts": {
+      "title": "Accounts",
+      "type": "array",
+      "editor": "json",
+      "description": "[{\"email\": \"...\", \"password\": \"...\", \"label\": \"optional\"}]"
+    },
+    "concurrency": {
+      "title": "Parallel accounts",
+      "type": "integer",
+      "default": 3,
+      "minimum": 1,
+      "maximum": 10
+    },
+    "maxRetries": {
+      "title": "Retries per account",
+      "type": "integer",
+      "default": 2,
+      "minimum": 0,
+      "maximum": 5,
+      "description": "Bad credentials are never retried."
+    },
+    "timeoutSecs": {
+      "title": "Max wait per step (s)",
+      "type": "integer",
+      "default": 30,
+      "minimum": 5,
+      "maximum": 180,
+      "description": "Upper bound only; steps continue as soon as the page is ready."
+    },
+    "failOnAnyError": {
+      "title": "Fail run if any account fails",
+      "type": "boolean",
+      "default": false
+    },
+    "headless": {
+      "title": "Headless",
+      "type": "boolean",
+      "default": true
+    },
+    "proxyConfiguration": {
+      "title": "Proxy",
+      "type": "object",
+      "editor": "proxy",
+      "default": {
+        "useApifyProxy": false
+      }
+    }
+  }
+}
