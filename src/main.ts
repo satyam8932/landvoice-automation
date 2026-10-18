@@ -1,7 +1,8 @@
 import { Actor, log } from 'apify';
 import { chromium, type Browser } from 'playwright';
-import { processAccount } from './landvoice.js';
-import type { Account, AccountResult, Input, RunOptions } from './types.js';
+import { exportAccount } from './account.js';
+import { LEAD_LISTS, type LeadList, type LeadListName } from './config.js';
+import type { Account, AccountResult, Input, ListExport, ListFields, RunOptions } from './types.js';
 import { ERR, LvError, maskEmail, runPool, toLvError, withRetry } from './utils.js';
 
 await Actor.init();
@@ -11,7 +12,8 @@ let failed = false;
 try {
     const input = (await Actor.getInput<Input>()) ?? {};
     const accounts = parseAccounts(input);
-    const concurrency = input.concurrency ?? 3;
+    const lists = parseLists(input.lists);
+    const concurrency = input.concurrency ?? 1;
     const maxRetries = input.maxRetries ?? 2;
     const opts: RunOptions = {
         timeoutMs: (input.timeoutSecs ?? 30) * 1000,
@@ -19,7 +21,7 @@ try {
             ? await Actor.createProxyConfiguration(input.proxyConfiguration)
             : undefined,
     };
-    log.info(`Processing ${accounts.length} account(s), concurrency ${concurrency}`);
+    log.info(`Exporting [${lists.map((l) => l.name).join(', ')}] for ${accounts.length} account(s), concurrency ${concurrency}`);
 
     browser = await chromium.launch({
         headless: input.headless ?? true,
@@ -28,19 +30,20 @@ try {
 
     const results: AccountResult[] = [];
     await runPool(accounts, concurrency, async (account, i) => {
-        results[i] = await runAccount(browser!, account, opts, maxRetries);
+        results[i] = await runAccount(browser!, account, lists, opts, maxRetries);
         await Actor.pushData(results[i]); // pushed immediately so partial results survive an abort
     });
 
     const count = (status: AccountResult['status']) => results.filter((r) => r.status === status).length;
     const summary = {
         total: results.length,
-        loggedIn: count('LOGGED_IN'),
+        exported: count('EXPORTED'),
+        noEntries: count('NO_ENTRIES'),
         failed: count('FAILED'),
         results,
     };
     await Actor.setValue('OUTPUT', summary);
-    log.info(`Done: ${summary.loggedIn} logged in, ${summary.failed} failed`);
+    log.info(`Done: ${summary.exported} exported, ${summary.noEntries} empty, ${summary.failed} failed`);
     failed = summary.failed > 0 && Boolean(input.failOnAnyError);
 } catch (raw) {
     const err = toLvError(raw);
@@ -53,28 +56,71 @@ try {
 
 await (failed ? Actor.fail() : Actor.exit());
 
-async function runAccount(browser: Browser, account: Account, opts: RunOptions, maxRetries: number): Promise<AccountResult> {
+/** Runs an account with retries; lists finished in a failed attempt are not redone. */
+async function runAccount(
+    browser: Browser,
+    account: Account,
+    lists: readonly LeadList[],
+    opts: RunOptions,
+    maxRetries: number,
+): Promise<AccountResult> {
     const started = Date.now();
+    const exports: ListExport[] = [];
     let attempts = 0;
-    const meta = () => ({ email: account.email, label: account.label ?? null, attempts, durationMs: Date.now() - started });
+    let status: AccountResult['status'] = 'FAILED';
+    let error: LvError | null = null;
+
     try {
-        const outcome = await withRetry(
-            (attempt) => processAccount(browser, account, opts, (attempts = attempt)),
+        await withRetry(
+            (attempt) => {
+                attempts = attempt;
+                const pending = lists.filter((list) => !exports.some((e) => e.list === list.name));
+                return exportAccount(browser, account, pending, opts, attempt, (done) => exports.push(done));
+            },
             maxRetries,
             (err, attempt) => log.warning(`[${maskEmail(account.email)}] attempt ${attempt} failed (${err.code}), retrying`),
         );
-        return { ...outcome, errorCode: null, errorMessage: null, ...meta() };
+        status = exports.some((e) => e.status === 'EXPORTED') ? 'EXPORTED' : 'NO_ENTRIES';
     } catch (raw) {
-        const err = toLvError(raw);
-        log.error(`[${maskEmail(account.email)}] ${err.code}: ${err.message}`);
-        return {
-            status: 'FAILED',
-            errorCode: err.code,
-            errorMessage: err.message,
-            screenshotKey: err.screenshotKey ?? null,
-            ...meta(),
-        };
+        error = toLvError(raw);
+        log.error(`[${maskEmail(account.email)}] ${error.code}: ${error.message}`);
     }
+
+    return {
+        email: account.email,
+        label: account.label ?? null,
+        status,
+        errorCode: error?.code ?? null,
+        errorMessage: error?.message ?? null,
+        ...toListFields(exports),
+        screenshotKey: error?.screenshotKey ?? null,
+        attempts,
+        durationMs: Date.now() - started,
+        finishedAt: new Date().toISOString(),
+    };
+}
+
+/** Flattens per-list results into isExport<Name> / <name>Count / <name>CsvUrl / <name>CsvKey fields. */
+function toListFields(exports: readonly ListExport[]): ListFields {
+    const fields: Record<string, boolean | number | string | null> = {};
+    for (const name of Object.keys(LEAD_LISTS) as LeadListName[]) {
+        const result = exports.find((e) => e.list === name);
+        const exported = result?.status === 'EXPORTED' ? result : null;
+        fields[`isExport${name[0]!.toUpperCase()}${name.slice(1)}`] = result ? Boolean(exported) : null;
+        fields[`${name}Count`] = result?.entries ?? null;
+        fields[`${name}CsvUrl`] = exported?.csvUrl ?? null;
+        fields[`${name}CsvKey`] = exported?.csvKey ?? null;
+    }
+    return fields as ListFields;
+}
+
+function parseLists(names: string[] | undefined): LeadList[] {
+    if (!names?.length) return Object.values(LEAD_LISTS);
+    return names.map((name) => {
+        const list = LEAD_LISTS[name as LeadListName];
+        if (!list) throw new LvError(ERR.INVALID_INPUT, `Unknown list "${name}". Valid: ${Object.keys(LEAD_LISTS).join(', ')}`);
+        return list;
+    });
 }
 
 function parseAccounts(input: Input): Account[] {

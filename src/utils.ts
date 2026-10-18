@@ -6,6 +6,7 @@ export const ERR = {
     LOGIN_BLOCKED: 'LOGIN_BLOCKED',
     TIMEOUT: 'TIMEOUT',
     NAVIGATION: 'NAVIGATION',
+    EXPORT_FAILED: 'EXPORT_FAILED',
     UNKNOWN: 'UNKNOWN',
 } as const;
 
@@ -80,10 +81,6 @@ export async function runPool<T>(items: readonly T[], limit: number, worker: (it
         }
     };
     await Promise.all(Array.from({ length: Math.min(limit, items.length) }, runner));
-}
-
-export function kvKey(...parts: (string | number)[]): string {
-    return parts.join('-').replace(/[^a-zA-Z0-9!\-_.'()]/g, '_').slice(0, 250);
 }
 
 export function maskEmail(email: string): string {

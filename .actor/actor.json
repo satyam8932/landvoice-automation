@@ -20,16 +20,41 @@
               "status",
               "errorCode",
               "errorMessage",
+              "isExportExpireds",
+              "expiredsCount",
+              "expiredsCsvUrl",
+              "isExportFsbo",
+              "fsboCount",
+              "fsboCsvUrl",
+              "isExportPreforeclosure",
+              "preforeclosureCount",
+              "preforeclosureCsvUrl",
               "attempts",
-              "durationMs"
+              "durationMs",
+              "finishedAt"
             ]
           },
           "display": {
             "component": "table",
-            "properties": {}
+            "properties": {
+              "expiredsCsvUrl": {
+                "label": "expireds CSV",
+                "format": "link"
+              },
+              "fsboCsvUrl": {
+                "label": "fsbo CSV",
+                "format": "link"
+              },
+              "preforeclosureCsvUrl": {
+                "label": "preforeclosure CSV",
+                "format": "link"
+              }
+            }
           }
         }
       }
     }
-  }
+  },
+  "defaultMemoryMbytes": 2048,
+  "maxMemoryMbytes": 2048
 }

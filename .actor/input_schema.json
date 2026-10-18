@@ -21,12 +21,37 @@
       "editor": "json",
       "description": "[{\"email\": \"...\", \"password\": \"...\", \"label\": \"optional\"}]"
     },
+    "lists": {
+      "title": "Lists to export",
+      "type": "array",
+      "editor": "select",
+      "description": "Tabs to export for every account. Empty = all.",
+      "items": {
+        "type": "string",
+        "enum": [
+          "expireds",
+          "fsbo",
+          "preforeclosure"
+        ],
+        "enumTitles": [
+          "Expireds",
+          "FSBO",
+          "Pre-Foreclosure"
+        ]
+      },
+      "default": [
+        "expireds",
+        "fsbo",
+        "preforeclosure"
+      ]
+    },
     "concurrency": {
       "title": "Parallel accounts",
       "type": "integer",
-      "default": 3,
+      "default": 1,
       "minimum": 1,
-      "maximum": 10
+      "maximum": 10,
+      "description": "Accounts processed in parallel within one run. Keep 1 when n8n runs one account per call."
     },
     "maxRetries": {
       "title": "Retries per account",
