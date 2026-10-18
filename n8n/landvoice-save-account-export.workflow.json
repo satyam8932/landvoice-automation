@@ -1,0 +1,532 @@
+{
+  "name": "Landvoice - Save Account Export",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## Landvoice - Save Account Export (sub-workflow)\n\nCalled by **Landvoice - Daily Lead Export** once per account after its Apify run finished. Do not run it on its own.\n\n**Input (one item):** `runId`, `datasetId`, `clientName`, `email`, `status` (Apify run status), `statusMessage`, `dateFolderId`, `exportDate`.\n\n**Does:** reads the actor result; if files were exported, finds or creates `<date folder>/<Client Name>` in Drive and saves each CSV there as a native Google Sheet.\n\n**Returns:** exactly one Run Log row (the output of *Build Run Log Row*).\n\n**Setup:** select the `Apify API Token` credential on *Get Run Result* and your Google Drive OAuth2 credential on the three Drive nodes.",
+        "height": 560,
+        "width": 500,
+        "color": 4
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -560,
+        -420
+      ],
+      "id": "819c27fa-0b62-4f36-8b1c-ff3182b5364a",
+      "name": "Sticky Note 1"
+    },
+    {
+      "parameters": {
+        "content": "### Actor result\nOnly runs that SUCCEEDED have a result to read. Anything else (failed / timed out / aborted) goes straight to the log.",
+        "height": 460,
+        "width": 640,
+        "color": 5
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        180,
+        -300
+      ],
+      "id": "d5ba9246-2bda-432b-8c06-432983d4ba7f",
+      "name": "Sticky Note 2"
+    },
+    {
+      "parameters": {
+        "content": "### Client folder (find or create)\nLooks for a folder named after the client inside today's date folder and creates it if missing, so re-runs on the same day reuse it.",
+        "height": 520,
+        "width": 660,
+        "color": 7
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        840,
+        -420
+      ],
+      "id": "0a9ec6f0-8cce-4cdf-b464-b0ff7a867364",
+      "name": "Sticky Note 3"
+    },
+    {
+      "parameters": {
+        "content": "### Save CSVs as Google Sheets\nOne item per exported list. Drive converts the uploaded CSV into a Google Sheet (target mime type `google-apps.spreadsheet`), keeping every column.",
+        "height": 400,
+        "width": 900,
+        "color": 6
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        1520,
+        -420
+      ],
+      "id": "e72f45d9-a6d4-408e-a66e-d20ae053d4b7",
+      "name": "Sticky Note 4"
+    },
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "0f32b4d6-6cc0-4824-8554-db1ad403ba34",
+      "name": "When Called by Daily Export",
+      "notes": "Receives one account",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "20802ed4-a288-404b-9413-9161600c1556",
+              "leftValue": "={{ $json.status }}",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              },
+              "rightValue": "SUCCEEDED"
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        220,
+        0
+      ],
+      "id": "8da9e6bf-ed71-4ff0-a2d0-6020e56fb383",
+      "name": "Run Succeeded?",
+      "notes": "Apify status = SUCCEEDED",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "url": "=https://api.apify.com/v2/datasets/{{ $json.datasetId }}/items?clean=true",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        440,
+        -120
+      ],
+      "id": "9a222449-3bf9-4b63-8b8c-5e0b6caf7de1",
+      "name": "Get Run Result",
+      "notes": "Actor output (1 item)",
+      "notesInFlow": true,
+      "alwaysOutputData": true,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "71170eb3-f85e-4ab0-8c74-f3a6aff227c9",
+              "leftValue": "={{ $json.status }}",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              },
+              "rightValue": "EXPORTED"
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        660,
+        -120
+      ],
+      "id": "ae79a7fb-de37-4c14-a06a-3680ffb70271",
+      "name": "Has Exports?",
+      "notes": "status = EXPORTED",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://www.googleapis.com/drive/v3/files",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleDriveOAuth2Api",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "q",
+              "value": "={{ \"name = '\" + $('When Called by Daily Export').first().json.clientName.replace(/\\\\/g, \"\\\\\\\\\").replace(/'/g, \"\\\\'\") + \"' and '\" + $('When Called by Daily Export').first().json.dateFolderId + \"' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false\" }}"
+            },
+            {
+              "name": "fields",
+              "value": "files(id,name,webViewLink)"
+            },
+            {
+              "name": "supportsAllDrives",
+              "value": "true"
+            },
+            {
+              "name": "includeItemsFromAllDrives",
+              "value": "true"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        880,
+        -220
+      ],
+      "id": "48b46c68-9a47-490a-8135-48f27b8313d4",
+      "name": "Find Client Folder",
+      "notes": "Drive search in date folder",
+      "notesInFlow": true,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "2628731c-e0f7-4e85-bba9-637d683e31a4",
+              "leftValue": "={{ ($json.files || []).length }}",
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              },
+              "rightValue": 0
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1100,
+        -220
+      ],
+      "id": "1e99c91f-5301-4534-a0d1-9251b9134271",
+      "name": "Client Folder Exists?",
+      "notes": "Found one?",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://www.googleapis.com/drive/v3/files?supportsAllDrives=true&fields=id,name,webViewLink",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleDriveOAuth2Api",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ name: $('When Called by Daily Export').first().json.clientName, mimeType: 'application/vnd.google-apps.folder', parents: [$('When Called by Daily Export').first().json.dateFolderId] }) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1320,
+        -80
+      ],
+      "id": "13f69b75-1fd3-4ddc-b947-b87f27e039c6",
+      "name": "Create Client Folder",
+      "notes": "New folder",
+      "notesInFlow": true,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000
+    },
+    {
+      "parameters": {
+        "jsCode": "// One output item per list that produced a CSV (Expireds / FSBO / Pre-Foreclosure).\n// File name: \"<Client Name> - <List> - <export date>\" so a sheet is self-describing even outside its folder.\nconst LIST_TITLES = { expireds: 'Expireds', fsbo: 'FSBO', preforeclosure: 'Pre-Foreclosure' };\n\nconst ctx = $('When Called by Daily Export').first().json;\nconst result = $('Get Run Result').first().json;\nconst folderId = $('Create Client Folder').isExecuted\n  ? $('Create Client Folder').first().json.id\n  : $('Find Client Folder').first().json.files[0].id;\n\nreturn Object.entries(LIST_TITLES)\n  .filter(([list]) => result[`${list}CsvUrl`])\n  .map(([list, title]) => ({\n    json: {\n      list,\n      fileName: `${ctx.clientName} - ${title} - ${ctx.exportDate}`,\n      csvUrl: result[`${list}CsvUrl`],\n      entries: result[`${list}Count`],\n      folderId,\n    },\n  }));\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1540,
+        -220
+      ],
+      "id": "74306147-2803-4ed2-8092-8ce992b90b26",
+      "name": "Prepare Files",
+      "notes": "1 item per exported list",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.csvUrl }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "text",
+              "outputPropertyName": "csvText"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1760,
+        -220
+      ],
+      "id": "ab53f332-e98f-4b57-8b54-37641474801f",
+      "name": "Download CSV",
+      "notes": "Signed Apify URL, no auth",
+      "notesInFlow": true,
+      "onError": "continueRegularOutput",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000
+    },
+    {
+      "parameters": {
+        "jsCode": "// Drive \"multipart/related\" upload body: JSON metadata + the CSV.\n// mimeType google-apps.spreadsheet makes Drive convert the CSV into a native Google Sheet.\nconst file = $('Prepare Files').item.json;\nif ($json.error) return { json: { ...file, error: $json.error } };\n\nconst boundary = 'landvoice_csv_boundary';\nconst metadata = { name: file.fileName, mimeType: 'application/vnd.google-apps.spreadsheet', parents: [file.folderId] };\nconst uploadBody = [\n  `--${boundary}`,\n  'Content-Type: application/json; charset=UTF-8',\n  '',\n  JSON.stringify(metadata),\n  `--${boundary}`,\n  'Content-Type: text/csv; charset=UTF-8',\n  '',\n  $json.csvText,\n  `--${boundary}--`,\n].join('\\r\\n');\n\nreturn { json: { ...file, uploadBody } };\n",
+        "mode": "runOnceForEachItem"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1980,
+        -220
+      ],
+      "id": "6c06820d-a5a4-4d12-b727-483857b58949",
+      "name": "Build Upload Body",
+      "notes": "Metadata + CSV payload",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true&fields=id,name,webViewLink",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleDriveOAuth2Api",
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "multipart/related; boundary=landvoice_csv_boundary",
+        "body": "={{ $json.uploadBody }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2200,
+        -220
+      ],
+      "id": "ed4f43b6-98a6-40cf-813d-e51fc604b0d9",
+      "name": "Upload as Google Sheet",
+      "notes": "Drive API, converts to Sheet",
+      "notesInFlow": true,
+      "onError": "continueRegularOutput",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000
+    },
+    {
+      "parameters": {
+        "jsCode": "// Always returns exactly one Run Log row; this is what the parent workflow receives.\n// Reached from: Run Succeeded? (false), Has Exports? (false) or Upload as Google Sheet.\nconst ctx = $('When Called by Daily Export').first().json;\nconst items = $input.all().map((i) => i.json);\nconst result = $('Get Run Result').isExecuted ? $('Get Run Result').first().json ?? {} : {};\nconst errors = [];\nlet status;\n\nif (ctx.status !== 'SUCCEEDED') {\n  status = `RUN_${ctx.status}`;\n  if (ctx.statusMessage) errors.push(ctx.statusMessage);\n} else {\n  status = result.status ?? 'NO_RESULT';\n  if (result.errorCode) errors.push(`${result.errorCode}: ${result.errorMessage}`);\n}\n\n// Upload responses line up 1:1 with the upload bodies, which carry the file names.\nconst bodies = $('Build Upload Body').isExecuted ? $('Build Upload Body').all().map((i) => i.json) : [];\nconst sheets = items.filter((i) => i.webViewLink);\nitems.forEach((item, i) => {\n  if (item.error) errors.push(`Upload failed for ${bodies[i]?.fileName ?? 'a file'}: ${item.error.message ?? JSON.stringify(item.error)}`);\n});\n\nconst folderId = $('Prepare Files').isExecuted ? $('Prepare Files').first().json.folderId : null;\nconst count = (list) => result[`${list}Count`] ?? '';\n\nreturn [{\n  json: {\n    'Run Date': $now.toFormat('yyyy-MM-dd HH:mm'),\n    'Client Name': ctx.clientName,\n    'Email': ctx.email,\n    'Status': status,\n    'Error': errors.join(' | '),\n    'Expireds': count('expireds'),\n    'FSBO': count('fsbo'),\n    'Pre-Foreclosure': count('preforeclosure'),\n    'Drive Folder': folderId ? `https://drive.google.com/drive/folders/${folderId}` : '',\n    'Google Sheets': sheets.map((s) => `${s.name}: ${s.webViewLink}`).join('\\n'),\n    'Apify Run': `https://console.apify.com/view/runs/${ctx.runId}`,\n  },\n}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2440,
+        0
+      ],
+      "id": "b4b0b519-2204-4d58-9f80-b40bfec7ec37",
+      "name": "Build Run Log Row",
+      "notes": "1 row, returned to parent",
+      "notesInFlow": true
+    }
+  ],
+  "connections": {
+    "When Called by Daily Export": {
+      "main": [
+        [
+          {
+            "node": "Run Succeeded?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Run Succeeded?": {
+      "main": [
+        [
+          {
+            "node": "Get Run Result",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Run Log Row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Run Result": {
+      "main": [
+        [
+          {
+            "node": "Has Exports?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Exports?": {
+      "main": [
+        [
+          {
+            "node": "Find Client Folder",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Run Log Row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find Client Folder": {
+      "main": [
+        [
+          {
+            "node": "Client Folder Exists?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Client Folder Exists?": {
+      "main": [
+        [
+          {
+            "node": "Prepare Files",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Create Client Folder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Client Folder": {
+      "main": [
+        [
+          {
+            "node": "Prepare Files",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Files": {
+      "main": [
+        [
+          {
+            "node": "Download CSV",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download CSV": {
+      "main": [
+        [
+          {
+            "node": "Build Upload Body",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Upload Body": {
+      "main": [
+        [
+          {
+            "node": "Upload as Google Sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upload as Google Sheet": {
+      "main": [
+        [
+          {
+            "node": "Build Run Log Row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Europe/London",
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": false
+  }
+}

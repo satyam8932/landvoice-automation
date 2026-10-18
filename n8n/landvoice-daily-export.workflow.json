@@ -1,0 +1,951 @@
+{
+  "name": "Landvoice - Daily Lead Export",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## Landvoice - Daily Lead Export\n\n**What it does:** for every client in *Client Credentials*, runs the Apify actor `landvoice-csv-exporter` (logs into Landvoice and exports **today's** leads from Expireds, FSBO and Pre-Foreclosure), saves the files as Google Sheets and writes one row per client to *Run Log*.\n\n**Drive layout**\n```\nRoot folder\n\u2514\u2500\u2500 2026-10-18 - Exports\n    \u2514\u2500\u2500 Client Name\n        \u251c\u2500\u2500 Client Name - Expireds - 2026-10-18\n        \u2514\u2500\u2500 Client Name - FSBO - 2026-10-18\n```\nClient folders are only created when that client has files.\n\n**One-time setup**\n1. Import **Landvoice - Save Account Export** first, then paste its workflow ID (from its URL) into the *Save Account Exports* node.\n2. **Config**: set `rootFolderId` (from the Drive folder URL).\n3. Create an **HTTP Header Auth** credential `Apify API Token` (Name `Authorization`, Value `Bearer <token>`); select it on *Start Apify Runs*, *Get Run Status* and in the sub-workflow.\n4. Select your **Google Drive OAuth2** credential on the Drive nodes (2 here, 3 in the sub-workflow).\n5. Add a **Run Log** tab with headers: `Run Date | Client Name | Email | Status | Error | Expireds | FSBO | Pre-Foreclosure | Drive Folder | Google Sheets | Apify Run`.\n6. Rename the client-name header in *Client Credentials* to `Client Name` (legacy `9` still works).\n\n**Status values:** `EXPORTED` \u00b7 `NO_ENTRIES` (nothing today) \u00b7 `FAILED` (e.g. `LOGIN_FAILED`) \u00b7 `RUN_<status>` (Apify run broke) \u00b7 `SAVE_FAILED` (Drive step broke).",
+        "height": 900,
+        "width": 600,
+        "color": 4
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -660,
+        -520
+      ],
+      "id": "fa06fe2d-ae5a-43e1-aba3-d6ff1c4e2351",
+      "name": "Sticky Note 1"
+    },
+    {
+      "parameters": {
+        "content": "### 1. Prepare today's run\nDaily at 22:00 (late, so *Today* holds the day's leads). Finds or creates `<date> - Exports` in the root folder once, then loads and cleans the client rows.",
+        "height": 520,
+        "width": 2200,
+        "color": 7
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -40,
+        -260
+      ],
+      "id": "8bcceb29-203f-482e-81f3-c64d002b51b6",
+      "name": "Sticky Note 2"
+    },
+    {
+      "parameters": {
+        "content": "### 2. Run a batch of accounts in parallel\n**Loop Over Items** hands over **5 accounts** at a time (batch size = parallel Apify runs; 5 x 2 GB = 10 GB). All 5 runs start at once, then **Wait** -> **Get Run Status** -> **Check Batch** repeat until every run in the batch has finished (or `maxPolls` is reached). The whole batch moves on together.",
+        "height": 560,
+        "width": 1360,
+        "color": 5
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        2180,
+        -260
+      ],
+      "id": "5fc60e45-8a70-4d33-8587-c1da7aae2fb2",
+      "name": "Sticky Note 3"
+    },
+    {
+      "parameters": {
+        "content": "### 3. Save files and log\n**Save Account Exports** calls the sub-workflow once per account (one after another, a few seconds each) and gets one log row back per account. **Ensure Log Rows** turns a crashed sub-workflow into a `SAVE_FAILED` row so no account is ever missing from the log.",
+        "height": 560,
+        "width": 700,
+        "color": 3
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        3560,
+        -260
+      ],
+      "id": "bcfe8f18-6047-487f-a13c-26b378e681fe",
+      "name": "Sticky Note 4"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 22
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        0,
+        0
+      ],
+      "id": "acff1492-ffd7-4408-bc6e-9f425b5a3d64",
+      "name": "Schedule Trigger",
+      "notes": "Daily 22:00 (Europe/London)",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "12fc2ae9-9817-4518-9e1d-981541f0bfe0",
+              "name": "rootFolderId",
+              "value": "PASTE_ROOT_DRIVE_FOLDER_ID",
+              "type": "string"
+            },
+            {
+              "id": "76453242-d0f3-490b-b6d8-124b0db7b4b3",
+              "name": "apifyActorId",
+              "value": "ba1Dt3gdVpKn4zuRn",
+              "type": "string"
+            },
+            {
+              "id": "0cee4c4c-5dd1-4e17-af0b-fd0634c7d9e2",
+              "name": "runMemoryMb",
+              "value": 2048,
+              "type": "number"
+            },
+            {
+              "id": "873f990a-6e43-4794-9076-a578c0475983",
+              "name": "runTimeoutSecs",
+              "value": 600,
+              "type": "number"
+            },
+            {
+              "id": "d16b8eb3-5d21-4777-ab12-e6f34dbdab01",
+              "name": "pollWaitSecs",
+              "value": 15,
+              "type": "number"
+            },
+            {
+              "id": "c0e395a4-fc33-4f88-ac09-e7922b7fda5d",
+              "name": "maxPolls",
+              "value": 60,
+              "type": "number"
+            },
+            {
+              "id": "f17c3455-1cdd-4b5c-959e-0770076f4b15",
+              "name": "exportDate",
+              "value": "={{ $now.toFormat('yyyy-MM-dd') }}",
+              "type": "string"
+            },
+            {
+              "id": "53b12266-e8a7-480c-a168-d44e898d5421",
+              "name": "dateFolderName",
+              "value": "={{ $now.toFormat('yyyy-MM-dd') }} - Exports",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        220,
+        0
+      ],
+      "id": "8e0a27db-5088-40df-bd14-1250e2b1595e",
+      "name": "Config",
+      "notes": "All settings in one place",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://www.googleapis.com/drive/v3/files",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleDriveOAuth2Api",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "q",
+              "value": "={{ \"name = '\" + $('Config').first().json.dateFolderName.replace(/\\\\/g, \"\\\\\\\\\").replace(/'/g, \"\\\\'\") + \"' and '\" + $('Config').first().json.rootFolderId + \"' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false\" }}"
+            },
+            {
+              "name": "fields",
+              "value": "files(id,name,webViewLink)"
+            },
+            {
+              "name": "supportsAllDrives",
+              "value": "true"
+            },
+            {
+              "name": "includeItemsFromAllDrives",
+              "value": "true"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        440,
+        0
+      ],
+      "id": "2eb7db7e-fa82-493a-ad3b-1e0a2f36424e",
+      "name": "Find Date Folder",
+      "notes": "Drive search in root",
+      "notesInFlow": true,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "005bd2f7-9dfc-4a2f-a041-b8d75f733230",
+              "leftValue": "={{ ($json.files || []).length }}",
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              },
+              "rightValue": 0
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        660,
+        0
+      ],
+      "id": "fa6e9fe4-54dd-4596-873e-c23ea3e7df94",
+      "name": "Date Folder Exists?",
+      "notes": "Found one?",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://www.googleapis.com/drive/v3/files?supportsAllDrives=true&fields=id,name,webViewLink",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleDriveOAuth2Api",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ name: $('Config').first().json.dateFolderName, mimeType: 'application/vnd.google-apps.folder', parents: [$('Config').first().json.rootFolderId] }) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        880,
+        140
+      ],
+      "id": "8bb3c42e-e683-4e75-b3a9-b081fae13d22",
+      "name": "Create Date Folder",
+      "notes": "New date folder",
+      "notesInFlow": true,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "068c20de-5d24-41cb-b2e9-9f5f9c080e72",
+              "name": "dateFolderId",
+              "value": "={{ $('Create Date Folder').isExecuted ? $('Create Date Folder').first().json.id : $('Find Date Folder').first().json.files[0].id }}",
+              "type": "string"
+            },
+            {
+              "id": "835aac50-a074-49a2-8aa9-de670f02e184",
+              "name": "exportDate",
+              "value": "={{ $('Config').first().json.exportDate }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1100,
+        0
+      ],
+      "id": "e5b62cdb-59b0-4184-8fbd-ff2c5383f9d7",
+      "name": "Run Context",
+      "notes": "dateFolderId + exportDate",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "14mVKAYA4U8T6DSlKiFuQMT7tEI0ih-wEt-Nyw9pt7YA",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 889327984,
+          "mode": "list",
+          "cachedResultName": "Client Credentials",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/14mVKAYA4U8T6DSlKiFuQMT7tEI0ih-wEt-Nyw9pt7YA/edit#gid=889327984"
+        },
+        "options": {
+          "dataLocationOnSheet": {
+            "values": {
+              "rangeDefinition": "specifyRange"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1320,
+        0
+      ],
+      "id": "6271a36f-3761-4519-8773-4ebf5d2e7984",
+      "name": "Get Client's Account Creds",
+      "notes": "One item per client row",
+      "notesInFlow": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "vjMXQ5fZ9tUtbnih",
+          "name": "Google Sheets account 4"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "b69494f4-b8f5-42d9-9e68-6a26df35fc82",
+              "name": "clientName",
+              "value": "={{ ($json['Client Name'] || $json['9'] || $json['Username/Email'] || '').toString().trim() }}",
+              "type": "string"
+            },
+            {
+              "id": "6aea03e0-9971-4b77-83d7-0478253ce977",
+              "name": "email",
+              "value": "={{ ($json['Username/Email'] || '').toString().trim() }}",
+              "type": "string"
+            },
+            {
+              "id": "fdf34fe2-3c2e-4f66-8c02-ef6323fdfbe1",
+              "name": "password",
+              "value": "={{ ($json['Password'] || '').toString() }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1540,
+        0
+      ],
+      "id": "97dcdc33-3243-4efb-b159-27833c27dd35",
+      "name": "Prepare Account",
+      "notes": "clientName / email / password",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "dd61da3e-9696-4e2d-b8af-0608a82686b6",
+              "leftValue": "={{ $json.email }}",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              },
+              "rightValue": ""
+            },
+            {
+              "id": "8ac40eb9-1f37-486b-894a-578f3c649bc9",
+              "leftValue": "={{ $json.password }}",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              },
+              "rightValue": ""
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2.2,
+      "position": [
+        1760,
+        0
+      ],
+      "id": "4cb5a60f-f139-415d-a822-925d3c53f4f8",
+      "name": "Has Credentials?",
+      "notes": "Drops incomplete rows",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "batchSize": 5,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        1980,
+        0
+      ],
+      "id": "ee6ad1ec-d70e-4ad7-b107-a536471a118d",
+      "name": "Loop Over Items",
+      "notes": "Batch size = parallel runs",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        2240,
+        -140
+      ],
+      "id": "22aaaec4-5be2-47d8-95db-7904c85b51b6",
+      "name": "All Accounts Processed",
+      "notes": "End of run",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.apify.com/v2/acts/{{ $('Config').first().json.apifyActorId }}/runs?memory={{ $('Config').first().json.runMemoryMb }}&timeout={{ $('Config').first().json.runTimeoutSecs }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ email: $json.email, password: $json.password, label: $json.clientName }) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2240,
+        100
+      ],
+      "id": "ea546dc6-9c2b-4819-949b-14a796356ab8",
+      "name": "Start Apify Runs",
+      "notes": "1 async run per account",
+      "notesInFlow": true,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "8cb7b3eb-b74a-4128-9ca3-d16f56383aff",
+              "name": "runId",
+              "value": "={{ $json.data.id }}",
+              "type": "string"
+            },
+            {
+              "id": "a54284d4-0aa2-4dc5-ade7-4293384debd7",
+              "name": "datasetId",
+              "value": "={{ $json.data.defaultDatasetId }}",
+              "type": "string"
+            },
+            {
+              "id": "d4913224-4f8d-4814-a0a9-45df89243b2b",
+              "name": "clientName",
+              "value": "={{ $('Loop Over Items').item.json.clientName }}",
+              "type": "string"
+            },
+            {
+              "id": "75cf8fa0-5e21-4e56-87a5-d93263010571",
+              "name": "email",
+              "value": "={{ $('Loop Over Items').item.json.email }}",
+              "type": "string"
+            },
+            {
+              "id": "d7420e60-0302-480a-871f-b090b8faf752",
+              "name": "dateFolderId",
+              "value": "={{ $('Run Context').first().json.dateFolderId }}",
+              "type": "string"
+            },
+            {
+              "id": "5b370ac7-f1f2-4bb2-a087-0aad25e9f601",
+              "name": "exportDate",
+              "value": "={{ $('Run Context').first().json.exportDate }}",
+              "type": "string"
+            },
+            {
+              "id": "b30235dc-ec5a-447c-b5b8-8ee32e617c1b",
+              "name": "status",
+              "value": "={{ $json.data.status }}",
+              "type": "string"
+            },
+            {
+              "id": "52d4daf2-6ef5-438b-80cd-fc17e9a886c6",
+              "name": "polls",
+              "value": 0,
+              "type": "number"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        2460,
+        100
+      ],
+      "id": "9170beec-0505-498e-b656-dfe4d5dd2ffb",
+      "name": "Track Runs",
+      "notes": "Run id + client (no password)",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "amount": "={{ $('Config').first().json.pollWaitSecs }}",
+        "unit": "seconds"
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        2680,
+        100
+      ],
+      "id": "04eb27ef-c253-4cd6-ad6d-5e49bacdba88",
+      "name": "Wait",
+      "notes": "Pause between polls",
+      "notesInFlow": true,
+      "webhookId": "2dc2df46-6ea4-48c7-93a4-527f5e5ca7f7"
+    },
+    {
+      "parameters": {
+        "url": "=https://api.apify.com/v2/actor-runs/{{ $json.runId }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2900,
+        100
+      ],
+      "id": "13c3d1ff-9c77-4f79-84d2-971ea1a18107",
+      "name": "Get Run Status",
+      "notes": "GET /actor-runs/{id}",
+      "notesInFlow": true,
+      "onError": "continueRegularOutput",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000
+    },
+    {
+      "parameters": {
+        "jsCode": "// Merges each run's latest Apify status into its tracking item and decides if the whole batch is done.\n// The batch is done when no run is READY/RUNNING (or a status call keeps failing) - or maxPolls is hit.\nconst { maxPolls } = $('Config').first().json;\nconst ACTIVE = ['READY', 'RUNNING', 'POLL_ERROR'];\nconst sent = $('Wait').all(); // same order as the status responses\n\nconst runs = $input.all().map((res, i) => {\n  const prev = sent[i].json;\n  const data = res.json.data;\n  return {\n    ...prev,\n    status: data?.status ?? 'POLL_ERROR',\n    statusMessage: data?.statusMessage ?? res.json.error?.message ?? '',\n    polls: (prev.polls ?? 0) + 1,\n  };\n});\n\nconst pending = runs.filter((r) => ACTIVE.includes(r.status) && r.polls < maxPolls);\nconst batchDone = pending.length === 0;\n\nreturn runs.map((r) => ({\n  json: {\n    ...r,\n    // Runs still active after maxPolls are reported instead of polled forever.\n    status: batchDone && ACTIVE.includes(r.status) ? 'POLL_TIMEOUT' : r.status,\n    batchDone,\n  },\n}));\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3120,
+        100
+      ],
+      "id": "8a84d831-a6e8-4686-87af-b9166b9c6d79",
+      "name": "Check Batch",
+      "notes": "All runs finished?",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "41634bf2-ca1e-491e-bbbd-b7819ab97d4e",
+              "leftValue": "={{ $json.batchDone }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              },
+              "rightValue": ""
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        3340,
+        100
+      ],
+      "id": "d5385e99-199b-40f0-bd96-65834559b0dd",
+      "name": "Batch Finished?",
+      "notes": "false = poll again",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "value": "PASTE_SAVE_ACCOUNT_EXPORT_WORKFLOW_ID",
+          "mode": "id"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "mode": "each",
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        3600,
+        100
+      ],
+      "id": "6146f683-6b6d-4bf3-94ef-6e53ff627a1f",
+      "name": "Save Account Exports",
+      "notes": "Sub-workflow, once per account",
+      "notesInFlow": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// One Run Log row per account, even if the sub-workflow crashed for that account.\nconst sent = $('Batch Finished?').all(); // same order as the sub-workflow results\n\nreturn $input.all().map((out, i) => {\n  if (out.json.Status) return out;\n  const run = sent[i]?.json ?? {};\n  return {\n    json: {\n      'Run Date': $now.toFormat('yyyy-MM-dd HH:mm'),\n      'Client Name': run.clientName ?? '',\n      'Email': run.email ?? '',\n      'Status': 'SAVE_FAILED',\n      'Error': `Saving exports failed: ${out.json.error?.message ?? JSON.stringify(out.json)}`,\n      'Expireds': '',\n      'FSBO': '',\n      'Pre-Foreclosure': '',\n      'Drive Folder': '',\n      'Google Sheets': '',\n      'Apify Run': run.runId ? `https://console.apify.com/view/runs/${run.runId}` : '',\n    },\n  };\n});\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3820,
+        100
+      ],
+      "id": "7a8b2b8e-a8b6-4556-9fd8-02599757c284",
+      "name": "Ensure Log Rows",
+      "notes": "Fills gaps",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "14mVKAYA4U8T6DSlKiFuQMT7tEI0ih-wEt-Nyw9pt7YA",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Run Log",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": []
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        4040,
+        100
+      ],
+      "id": "21258fd2-8571-43f9-a000-f9b262c53871",
+      "name": "Append Run Log",
+      "notes": "Run Log tab",
+      "notesInFlow": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "vjMXQ5fZ9tUtbnih",
+          "name": "Google Sheets account 4"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Config": {
+      "main": [
+        [
+          {
+            "node": "Find Date Folder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find Date Folder": {
+      "main": [
+        [
+          {
+            "node": "Date Folder Exists?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Date Folder": {
+      "main": [
+        [
+          {
+            "node": "Run Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Run Context": {
+      "main": [
+        [
+          {
+            "node": "Get Client's Account Creds",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Client's Account Creds": {
+      "main": [
+        [
+          {
+            "node": "Prepare Account",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Account": {
+      "main": [
+        [
+          {
+            "node": "Has Credentials?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Credentials?": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Start Apify Runs": {
+      "main": [
+        [
+          {
+            "node": "Track Runs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Track Runs": {
+      "main": [
+        [
+          {
+            "node": "Wait",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait": {
+      "main": [
+        [
+          {
+            "node": "Get Run Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Run Status": {
+      "main": [
+        [
+          {
+            "node": "Check Batch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Batch": {
+      "main": [
+        [
+          {
+            "node": "Batch Finished?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save Account Exports": {
+      "main": [
+        [
+          {
+            "node": "Ensure Log Rows",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ensure Log Rows": {
+      "main": [
+        [
+          {
+            "node": "Append Run Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Append Run Log": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Date Folder Exists?": {
+      "main": [
+        [
+          {
+            "node": "Run Context",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Create Date Folder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Items": {
+      "main": [
+        [
+          {
+            "node": "All Accounts Processed",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Start Apify Runs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Batch Finished?": {
+      "main": [
+        [
+          {
+            "node": "Save Account Exports",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Wait",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Europe/London",
+    "saveManualExecutions": true
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": false
+  }
+}
