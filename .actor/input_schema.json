@@ -13,7 +13,8 @@
       "title": "Password",
       "type": "string",
       "editor": "textfield",
-      "isSecret": true
+      "isSecret": true,
+      "description": "Landvoice password for 'email'."
     },
     "accounts": {
       "title": "Accounts",
@@ -72,12 +73,14 @@
     "failOnAnyError": {
       "title": "Fail run if any account fails",
       "type": "boolean",
-      "default": false
+      "default": false,
+      "description": "Mark the run as failed if any account fails. Off = run succeeds and errors are reported per account."
     },
     "headless": {
       "title": "Headless",
       "type": "boolean",
-      "default": true
+      "default": true,
+      "description": "Run the browser without a window. Turn off only for local debugging."
     },
     "proxyConfiguration": {
       "title": "Proxy",
@@ -85,7 +88,8 @@
       "editor": "proxy",
       "default": {
         "useApifyProxy": false
-      }
+      },
+      "description": "Optional proxy. Each account gets its own sticky session."
     }
   }
 }
