@@ -522,7 +522,7 @@
   },
   "settings": {
     "executionOrder": "v1",
-    "timezone": "Europe/London",
+    "timezone": "America/New_York",
     "callerPolicy": "workflowsFromSameOwner"
   },
   "pinData": {},

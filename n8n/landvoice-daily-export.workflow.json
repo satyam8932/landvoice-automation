@@ -19,7 +19,7 @@
     },
     {
       "parameters": {
-        "content": "### 1. Prepare today's run\nDaily at 22:00 (late, so *Today* holds the day's leads). Finds or creates `<date> - Exports` in the root folder once, then loads and cleans the client rows.",
+        "content": "### 1. Prepare today's run\nDaily at 9:00 AM New York time (EST/EDT handled automatically). Finds or creates `<date> - Exports` in the root folder once, then loads and cleans the client rows.",
         "height": 520,
         "width": 2200,
         "color": 7
@@ -70,7 +70,7 @@
         "rule": {
           "interval": [
             {
-              "triggerAtHour": 22
+              "triggerAtHour": 9
             }
           ]
         }
@@ -83,7 +83,7 @@
       ],
       "id": "acff1492-ffd7-4408-bc6e-9f425b5a3d64",
       "name": "Schedule Trigger",
-      "notes": "Daily 22:00 (Europe/London)",
+      "notes": "Daily 9:00 AM (America/New_York)",
       "notesInFlow": true
     },
     {
@@ -941,7 +941,7 @@
   },
   "settings": {
     "executionOrder": "v1",
-    "timezone": "Europe/London",
+    "timezone": "America/New_York",
     "saveManualExecutions": true
   },
   "pinData": {},
