@@ -51,16 +51,16 @@
     },
     {
       "parameters": {
-        "content": "### Save CSVs as Google Sheets\nOne item per exported list. Drive converts the uploaded CSV into a Google Sheet (target mime type `google-apps.spreadsheet`), keeping every column.",
-        "height": 400,
-        "width": 900,
+        "content": "### Save CSVs as Google Sheets\nOne item per exported list. **Already Saved?** keeps a sheet that already exists in the client folder (safe re-runs, no duplicates); new ones are uploaded and Drive converts the CSV into a Google Sheet (target mime type `google-apps.spreadsheet`), keeping every column.",
+        "height": 440,
+        "width": 1300,
         "color": 6
       },
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
       "position": [
         1520,
-        -420
+        -460
       ],
       "id": "e72f45d9-a6d4-408e-a66e-d20ae053d4b7",
       "name": "Sticky Note 4"
@@ -277,12 +277,12 @@
     },
     {
       "parameters": {
-        "jsCode": "// One output item per list that produced a CSV (Expireds / FSBO / Pre-Foreclosure).\n// File name: \"<Client Name> - <List> - <export date>\" so a sheet is self-describing even outside its folder.\nconst LIST_TITLES = { expireds: 'Expireds', fsbo: 'FSBO', preforeclosure: 'Pre-Foreclosure' };\n\nconst ctx = $('When Called by Daily Export').first().json;\nconst result = $('Get Run Result').first().json;\nconst folderId = $('Create Client Folder').isExecuted\n  ? $('Create Client Folder').first().json.id\n  : $('Find Client Folder').first().json.files[0].id;\n\nreturn Object.entries(LIST_TITLES)\n  .filter(([list]) => result[`${list}CsvUrl`])\n  .map(([list, title]) => ({\n    json: {\n      list,\n      fileName: `${ctx.clientName} - ${title} - ${ctx.exportDate}`,\n      csvUrl: result[`${list}CsvUrl`],\n      entries: result[`${list}Count`],\n      folderId,\n    },\n  }));\n"
+        "jsCode": "// One output item per list that produced a CSV (Expireds / FSBO / Pre-Foreclosure).\n// File name: \"<Client Name> - <List> - <export date>\" so a sheet is self-describing even outside its folder.\n// `existing` is set when a sheet with that name is already in the folder (e.g. a re-run), so it is not uploaded twice.\nconst LIST_TITLES = { expireds: 'Expireds', fsbo: 'FSBO', preforeclosure: 'Pre-Foreclosure' };\n\nconst ctx = $('When Called by Daily Export').first().json;\nconst result = $('Get Run Result').first().json;\nconst folderId = $('Create Client Folder').isExecuted\n  ? $('Create Client Folder').first().json.id\n  : $('Find Client Folder').first().json.files[0].id;\nconst existingByName = new Map(($('List Folder Sheets').first().json.files ?? []).map((f) => [f.name, f]));\n\nreturn Object.entries(LIST_TITLES)\n  .filter(([list]) => result[`${list}CsvUrl`])\n  .map(([list, title]) => {\n    const fileName = `${ctx.clientName} - ${title} - ${ctx.exportDate}`;\n    return {\n      json: {\n        list,\n        fileName,\n        csvUrl: result[`${list}CsvUrl`],\n        entries: result[`${list}Count`],\n        folderId,\n        existing: existingByName.get(fileName) ?? null,\n      },\n    };\n  });\n"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1540,
+        1760,
         -220
       ],
       "id": "74306147-2803-4ed2-8092-8ce992b90b26",
@@ -305,8 +305,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1760,
-        -220
+        2200,
+        -320
       ],
       "id": "ab53f332-e98f-4b57-8b54-37641474801f",
       "name": "Download CSV",
@@ -325,8 +325,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1980,
-        -220
+        2420,
+        -320
       ],
       "id": "6c06820d-a5a4-4d12-b727-483857b58949",
       "name": "Build Upload Body",
@@ -348,8 +348,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        2200,
-        -220
+        2640,
+        -320
       ],
       "id": "ed4f43b6-98a6-40cf-813d-e51fc604b0d9",
       "name": "Upload as Google Sheet",
@@ -362,17 +362,100 @@
     },
     {
       "parameters": {
-        "jsCode": "// Always returns exactly one Run Log row; this is what the parent workflow receives.\n// Reached from: Run Succeeded? (false), Has Exports? (false) or Upload as Google Sheet.\nconst ctx = $('When Called by Daily Export').first().json;\nconst items = $input.all().map((i) => i.json);\nconst result = $('Get Run Result').isExecuted ? $('Get Run Result').first().json ?? {} : {};\nconst errors = [];\nlet status;\n\nif (ctx.status !== 'SUCCEEDED') {\n  status = `RUN_${ctx.status}`;\n  if (ctx.statusMessage) errors.push(ctx.statusMessage);\n} else {\n  status = result.status ?? 'NO_RESULT';\n  if (result.errorCode) errors.push(`${result.errorCode}: ${result.errorMessage}`);\n}\n\n// Upload responses line up 1:1 with the upload bodies, which carry the file names.\nconst bodies = $('Build Upload Body').isExecuted ? $('Build Upload Body').all().map((i) => i.json) : [];\nconst sheets = items.filter((i) => i.webViewLink);\nitems.forEach((item, i) => {\n  if (item.error) errors.push(`Upload failed for ${bodies[i]?.fileName ?? 'a file'}: ${item.error.message ?? JSON.stringify(item.error)}`);\n});\n\nconst folderId = $('Prepare Files').isExecuted ? $('Prepare Files').first().json.folderId : null;\nconst count = (list) => result[`${list}Count`] ?? '';\n\nreturn [{\n  json: {\n    'Run Date': $now.toFormat('yyyy-MM-dd HH:mm'),\n    'Client Name': ctx.clientName,\n    'Email': ctx.email,\n    'Status': status,\n    'Error': errors.join(' | '),\n    'Expireds': count('expireds'),\n    'FSBO': count('fsbo'),\n    'Pre-Foreclosure': count('preforeclosure'),\n    'Drive Folder': folderId ? `https://drive.google.com/drive/folders/${folderId}` : '',\n    'Google Sheets': sheets.map((s) => `${s.name}: ${s.webViewLink}`).join('\\n'),\n    'Apify Run': `https://console.apify.com/view/runs/${ctx.runId}`,\n  },\n}];\n"
+        "jsCode": "// Always returns exactly one Run Log row; this is what the parent workflow receives.\n// Reached from: Run Succeeded? (false), Has Exports? (false), Already Saved? (true) or Upload as Google Sheet.\n// When files are split between \"already saved\" and \"uploaded\" this node runs twice; the parent gets the last run,\n// so everything is read from the source nodes (not $input) and both runs produce the same complete row.\nconst ctx = $('When Called by Daily Export').first().json;\nconst result = $('Get Run Result').isExecuted ? $('Get Run Result').first().json ?? {} : {};\nconst all = (node) => ($(node).isExecuted ? $(node).all().map((i) => i.json) : []);\nconst errors = [];\nlet status;\n\nif (ctx.status !== 'SUCCEEDED') {\n  status = `RUN_${ctx.status}`;\n  if (ctx.statusMessage) errors.push(ctx.statusMessage);\n} else {\n  status = result.status ?? 'NO_RESULT';\n  if (result.errorCode) errors.push(`${result.errorCode}: ${result.errorMessage}`);\n}\n\nconst files = all('Prepare Files');\nconst uploads = all('Upload as Google Sheet');\nconst bodies = all('Build Upload Body'); // lines up 1:1 with uploads\nconst kept = files.filter((f) => f.existing).map((f) => f.existing);\nconst sheets = [...kept, ...uploads.filter((u) => u.webViewLink)];\nuploads.forEach((u, i) => {\n  if (u.error) errors.push(`Upload failed for ${bodies[i]?.fileName ?? 'a file'}: ${u.error.message ?? JSON.stringify(u.error)}`);\n});\n\nconst folderId = files[0]?.folderId ?? null;\nconst count = (list) => result[`${list}Count`] ?? '';\n\nreturn [{\n  json: {\n    'Run Date': $now.toFormat('yyyy-MM-dd HH:mm'),\n    'Client Name': ctx.clientName,\n    'Email': ctx.email,\n    'Status': status,\n    'Error': errors.join(' | '),\n    'Expireds': count('expireds'),\n    'FSBO': count('fsbo'),\n    'Pre-Foreclosure': count('preforeclosure'),\n    'Drive Folder': folderId ? `https://drive.google.com/drive/folders/${folderId}` : '',\n    'Google Sheets': sheets.map((s) => `${s.name}: ${s.webViewLink}`).join('\\n'),\n    'Apify Run': `https://console.apify.com/view/runs/${ctx.runId}`,\n  },\n}];\n"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2440,
+        2880,
         0
       ],
       "id": "b4b0b519-2204-4d58-9f80-b40bfec7ec37",
       "name": "Build Run Log Row",
       "notes": "1 row, returned to parent",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://www.googleapis.com/drive/v3/files",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleDriveOAuth2Api",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "q",
+              "value": "={{ \"'\" + ($('Create Client Folder').isExecuted ? $('Create Client Folder').first().json.id : $('Find Client Folder').first().json.files[0].id) + \"' in parents and mimeType = 'application/vnd.google-apps.spreadsheet' and trashed = false\" }}"
+            },
+            {
+              "name": "fields",
+              "value": "files(id,name,webViewLink)"
+            },
+            {
+              "name": "pageSize",
+              "value": "100"
+            },
+            {
+              "name": "supportsAllDrives",
+              "value": "true"
+            },
+            {
+              "name": "includeItemsFromAllDrives",
+              "value": "true"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1540,
+        -220
+      ],
+      "id": "ac646049-1523-44fc-a656-37cefc12219c",
+      "name": "List Folder Sheets",
+      "notes": "Sheets already in folder",
+      "notesInFlow": true,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "361a0571-11e0-45ff-bc1d-c3d94bc4c170",
+              "leftValue": "={{ Boolean($json.existing) }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              },
+              "rightValue": ""
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1980,
+        -220
+      ],
+      "id": "62102b47-bc9e-4354-ac2e-687ed6fff289",
+      "name": "Already Saved?",
+      "notes": "true = keep existing sheet",
       "notesInFlow": true
     }
   ],
@@ -450,7 +533,7 @@
       "main": [
         [
           {
-            "node": "Prepare Files",
+            "node": "List Folder Sheets",
             "type": "main",
             "index": 0
           }
@@ -468,7 +551,7 @@
       "main": [
         [
           {
-            "node": "Prepare Files",
+            "node": "List Folder Sheets",
             "type": "main",
             "index": 0
           }
@@ -479,7 +562,7 @@
       "main": [
         [
           {
-            "node": "Download CSV",
+            "node": "Already Saved?",
             "type": "main",
             "index": 0
           }
@@ -513,6 +596,35 @@
         [
           {
             "node": "Build Run Log Row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "List Folder Sheets": {
+      "main": [
+        [
+          {
+            "node": "Prepare Files",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Already Saved?": {
+      "main": [
+        [
+          {
+            "node": "Build Run Log Row",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Download CSV",
             "type": "main",
             "index": 0
           }

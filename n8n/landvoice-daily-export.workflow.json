@@ -3,7 +3,7 @@
   "nodes": [
     {
       "parameters": {
-        "content": "## Landvoice - Daily Lead Export\n\n**What it does:** for every client in *Client Credentials*, runs the Apify actor `landvoice-csv-exporter` (logs into Landvoice and exports **today's** leads from Expireds, FSBO and Pre-Foreclosure), saves the files as Google Sheets and writes one row per client to *Run Log*.\n\n**Drive layout**\n```\nRoot folder\n\u2514\u2500\u2500 2026-10-18 - Exports\n    \u2514\u2500\u2500 Client Name\n        \u251c\u2500\u2500 Client Name - Expireds - 2026-10-18\n        \u2514\u2500\u2500 Client Name - FSBO - 2026-10-18\n```\nClient folders are only created when that client has files.\n\n**One-time setup**\n1. Import **Landvoice - Save Account Export** first, then paste its workflow ID (from its URL) into the *Save Account Exports* node.\n2. **Config**: set `rootFolderId` (from the Drive folder URL).\n3. Create an **HTTP Header Auth** credential `Apify API Token` (Name `Authorization`, Value `Bearer <token>`); select it on *Start Apify Runs*, *Get Run Status* and in the sub-workflow.\n4. Select your **Google Drive OAuth2** credential on the Drive nodes (2 here, 3 in the sub-workflow).\n5. Add a **Run Log** tab with headers: `Run Date | Client Name | Email | Status | Error | Expireds | FSBO | Pre-Foreclosure | Drive Folder | Google Sheets | Apify Run`.\n6. Rename the client-name header in *Client Credentials* to `Client Name` (legacy `9` still works).\n\n**Status values:** `EXPORTED` \u00b7 `NO_ENTRIES` (nothing today) \u00b7 `FAILED` (e.g. `LOGIN_FAILED`) \u00b7 `RUN_<status>` (Apify run broke) \u00b7 `SAVE_FAILED` (Drive step broke).",
+        "content": "## Landvoice - Daily Lead Export\n\n**What it does:** for every client in *Client Credentials*, runs the Apify actor `landvoice-csv-exporter` (logs into Landvoice and exports **today's** leads from Expireds, FSBO and Pre-Foreclosure), saves the files as Google Sheets and writes one row per client to *Run Log*.\n\n**Drive layout**\n```\nRoot folder\n\u2514\u2500\u2500 2026-10-18 - Exports\n    \u2514\u2500\u2500 Client Name\n        \u251c\u2500\u2500 Client Name - Expireds - 2026-10-18\n        \u2514\u2500\u2500 Client Name - FSBO - 2026-10-18\n```\nClient folders are only created when that client has files.\n\n**One-time setup**\n1. Import **Landvoice - Save Account Export** first, then paste its workflow ID (from its URL) into the *Save Account Exports* node.\n2. **Config**: set `rootFolderId` (from the Drive folder URL).\n3. Create an **HTTP Header Auth** credential `Apify API Token` (Name `Authorization`, Value `Bearer <token>`); select it on *Start Apify Runs*, *Get Run Status* and in the sub-workflow.\n4. Select your **Google Drive OAuth2** credential on the Drive nodes (2 here, 3 in the sub-workflow).\n5. Add a **Run Log** tab with headers: `Run Date | Client Name | Email | Status | Error | Expireds | FSBO | Pre-Foreclosure | Drive Folder | Google Sheets | Apify Run`.\n6. Rename the client-name header in *Client Credentials* to `Client Name` (legacy `9` still works).\n\n**Re-runs are safe:** finished clients are skipped and existing sheets are never duplicated. To force a fresh export for a client, delete their row(s) for today in *Run Log* and their sheets in Drive.\n\n**Status values:** `EXPORTED` \u00b7 `NO_ENTRIES` (nothing today) \u00b7 `FAILED` (e.g. `LOGIN_FAILED`) \u00b7 `RUN_<status>` (Apify run broke) \u00b7 `SAVE_FAILED` (Drive step broke).",
         "height": 900,
         "width": 600,
         "color": 4
@@ -19,9 +19,9 @@
     },
     {
       "parameters": {
-        "content": "### 1. Prepare today's run\nDaily at 9:00 AM New York time (EST/EDT handled automatically). Finds or creates `<date> - Exports` in the root folder once, then loads and cleans the client rows.",
+        "content": "### 1. Prepare today's run\nDaily at 9:00 AM New York time (EST/EDT handled automatically). Finds or creates `<date> - Exports` in the root folder once, then loads and cleans the client rows. **Skip Done Today** drops clients that already have an `EXPORTED` / `NO_ENTRIES` row for today, so a re-run resumes instead of redoing them.",
         "height": 520,
-        "width": 2200,
+        "width": 2640,
         "color": 7
       },
       "type": "n8n-nodes-base.stickyNote",
@@ -43,7 +43,7 @@
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
       "position": [
-        2180,
+        2620,
         -260
       ],
       "id": "5fc60e45-8a70-4d33-8587-c1da7aae2fb2",
@@ -59,7 +59,7 @@
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
       "position": [
-        3560,
+        4000,
         -260
       ],
       "id": "bcfe8f18-6047-487f-a13c-26b378e681fe",
@@ -417,7 +417,7 @@
       "type": "n8n-nodes-base.splitInBatches",
       "typeVersion": 3,
       "position": [
-        1980,
+        2420,
         0
       ],
       "id": "ee6ad1ec-d70e-4ad7-b107-a536471a118d",
@@ -430,7 +430,7 @@
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
       "position": [
-        2240,
+        2680,
         -140
       ],
       "id": "22aaaec4-5be2-47d8-95db-7904c85b51b6",
@@ -452,7 +452,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        2240,
+        2680,
         100
       ],
       "id": "ea546dc6-9c2b-4819-949b-14a796356ab8",
@@ -522,7 +522,7 @@
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
       "position": [
-        2460,
+        2900,
         100
       ],
       "id": "9170beec-0505-498e-b656-dfe4d5dd2ffb",
@@ -538,7 +538,7 @@
       "type": "n8n-nodes-base.wait",
       "typeVersion": 1.1,
       "position": [
-        2680,
+        3120,
         100
       ],
       "id": "04eb27ef-c253-4cd6-ad6d-5e49bacdba88",
@@ -557,7 +557,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        2900,
+        3340,
         100
       ],
       "id": "13c3d1ff-9c77-4f79-84d2-971ea1a18107",
@@ -576,7 +576,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        3120,
+        3560,
         100
       ],
       "id": "8a84d831-a6e8-4686-87af-b9166b9c6d79",
@@ -612,7 +612,7 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        3340,
+        3780,
         100
       ],
       "id": "d5385e99-199b-40f0-bd96-65834559b0dd",
@@ -644,7 +644,7 @@
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.2,
       "position": [
-        3600,
+        4040,
         100
       ],
       "id": "6146f683-6b6d-4bf3-94ef-6e53ff627a1f",
@@ -660,7 +660,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        3820,
+        4260,
         100
       ],
       "id": "7a8b2b8e-a8b6-4556-9fd8-02599757c284",
@@ -687,12 +687,14 @@
           "matchingColumns": [],
           "schema": []
         },
-        "options": {}
+        "options": {
+          "cellFormat": "RAW"
+        }
       },
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.7,
       "position": [
-        4040,
+        4480,
         100
       ],
       "id": "21258fd2-8571-43f9-a000-f9b262c53871",
@@ -705,6 +707,54 @@
           "name": "Google Sheets account 4"
         }
       }
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "14mVKAYA4U8T6DSlKiFuQMT7tEI0ih-wEt-Nyw9pt7YA",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Run Log",
+          "mode": "name"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1980,
+        0
+      ],
+      "id": "74ee8c6f-cc7c-4f3a-82db-e0627619e773",
+      "name": "Read Run Log",
+      "notes": "Who is already done today",
+      "notesInFlow": true,
+      "executeOnce": true,
+      "alwaysOutputData": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "vjMXQ5fZ9tUtbnih",
+          "name": "Google Sheets account 4"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Resume support: skip accounts that already have an EXPORTED / NO_ENTRIES row for today in the Run Log,\n// so re-running after a crash only processes the accounts that did not finish.\n// FAILED rows are not skipped, so a re-run retries them.\nconst today = DateTime.fromISO($('Config').first().json.exportDate);\nconst todayFormats = ['yyyy-MM-dd', 'dd/MM/yyyy', 'MM/dd/yyyy', 'd/M/yyyy', 'M/d/yyyy'].map((f) => today.toFormat(f));\nconst DONE = ['EXPORTED', 'NO_ENTRIES'];\n\nconst doneToday = new Set(\n  $input.all()\n    .map((i) => i.json)\n    .filter((row) => DONE.includes(row.Status) && todayFormats.some((d) => String(row['Run Date'] ?? '').startsWith(d)))\n    .map((row) => String(row.Email ?? '').toLowerCase()),\n);\n\nreturn $('Has Credentials?').all()\n  .filter((account) => !doneToday.has(account.json.email.toLowerCase()))\n  .map((account) => ({ json: account.json }));\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2200,
+        0
+      ],
+      "id": "179a1c93-671e-403d-90f6-f3ff0604a891",
+      "name": "Skip Done Today",
+      "notes": "Resume after a crash",
+      "notesInFlow": true
     }
   ],
   "connections": {
@@ -789,7 +839,7 @@
       "main": [
         [
           {
-            "node": "Loop Over Items",
+            "node": "Read Run Log",
             "type": "main",
             "index": 0
           }
@@ -932,6 +982,28 @@
         [
           {
             "node": "Wait",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Run Log": {
+      "main": [
+        [
+          {
+            "node": "Skip Done Today",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Skip Done Today": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
             "type": "main",
             "index": 0
           }
