@@ -4,6 +4,7 @@ export const ERR = {
     INVALID_INPUT: 'INVALID_INPUT',
     LOGIN_FAILED: 'LOGIN_FAILED',
     LOGIN_BLOCKED: 'LOGIN_BLOCKED',
+    TERMS_NOT_ACCEPTED: 'TERMS_NOT_ACCEPTED',
     TIMEOUT: 'TIMEOUT',
     NAVIGATION: 'NAVIGATION',
     EXPORT_FAILED: 'EXPORT_FAILED',
@@ -12,7 +13,7 @@ export const ERR = {
 
 export type ErrorCode = (typeof ERR)[keyof typeof ERR];
 
-const NON_RETRYABLE = new Set<ErrorCode>([ERR.INVALID_INPUT, ERR.LOGIN_FAILED, ERR.LOGIN_BLOCKED]);
+const NON_RETRYABLE = new Set<ErrorCode>([ERR.INVALID_INPUT, ERR.LOGIN_FAILED, ERR.LOGIN_BLOCKED, ERR.TERMS_NOT_ACCEPTED]);
 
 export class LvError extends Error {
     override name = 'LvError';
@@ -42,17 +43,22 @@ export function toLvError(err: unknown): LvError {
 /**
  * Waits for whichever selector becomes visible first and returns its key.
  * A single combined wait (locator.or) instead of parallel waits, so overlay handlers fire once.
+ * If the matched element re-renders away before it can be identified, it simply waits again.
  */
 export async function raceVisible<K extends string>(page: Page, selectors: Record<K, string>, timeout: number): Promise<K> {
     const entries = (Object.entries(selectors) as [K, string][]).map(([key, sel]) => [key, page.locator(sel).first()] as const);
     const anyOf = entries.map(([, loc]) => loc).reduce((a, b) => a.or(b));
-    try {
-        await anyOf.first().waitFor({ state: 'visible', timeout });
-    } catch {
-        throw new LvError(ERR.TIMEOUT, `None of [${entries.map(([k]) => k).join(', ')}] appeared within ${timeout}ms`);
+    const deadline = Date.now() + timeout;
+
+    for (;;) {
+        try {
+            await anyOf.first().waitFor({ state: 'visible', timeout: Math.max(deadline - Date.now(), 1) });
+        } catch {
+            throw new LvError(ERR.TIMEOUT, `None of [${entries.map(([k]) => k).join(', ')}] appeared within ${timeout}ms`);
+        }
+        for (const [key, loc] of entries) if (await loc.isVisible()) return key;
+        await page.waitForTimeout(50); // element flickered during a re-render; avoid a hot loop
     }
-    for (const [key, loc] of entries) if (await loc.isVisible()) return key;
-    throw new LvError(ERR.UNKNOWN, 'Matched element disappeared before it could be identified');
 }
 
 export async function withRetry<T>(

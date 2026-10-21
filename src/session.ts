@@ -1,6 +1,16 @@
 import type { log } from 'apify';
 import type { Download, Page, Response } from 'playwright';
-import { BASE_URL, DATE_RANGE, DOWNLOAD_TIMEOUT_MS, EXPORT_TEMPLATE, type LeadList, LOGIN_URL, SEL } from './config.js';
+import {
+    BASE_URL,
+    DATE_RANGE,
+    DOWNLOAD_TIMEOUT_MS,
+    EXPORT_TEMPLATE,
+    type LeadList,
+    LOGIN_URL,
+    SEL,
+    TERMS_API,
+    TERMS_GRACE_MS,
+} from './config.js';
 import type { Account } from './types.js';
 import { ERR, LvError, raceVisible, toLvError } from './utils.js';
 
@@ -21,11 +31,17 @@ export class LandvoiceSession {
         await page.goto(LOGIN_URL, { waitUntil: 'domcontentloaded' });
         await page.locator(SEL.email).fill(email);
         await page.locator(SEL.password).fill(password);
+
+        // Armed before submitting: the app asks this endpoint whether the license agreement was accepted.
+        const terms = page
+            .waitForResponse((res) => new URL(res.url()).pathname === TERMS_API, { timeout: this.timeoutMs })
+            .then((res) => res.json() as Promise<{ tos_accepted?: boolean }>)
+            .catch(() => null);
         await page.locator(SEL.submit).click();
 
         const outcome = await raceVisible(
             page,
-            { ok: SEL.loggedIn, error: SEL.loginError, blocked: SEL.loginBlocked },
+            { ok: SEL.loggedIn, error: SEL.loginError, blocked: SEL.loginBlocked, terms: SEL.termsModal },
             this.timeoutMs,
         );
         if (outcome === 'error') {
@@ -33,6 +49,15 @@ export class LandvoiceSession {
             throw new LvError(ERR.LOGIN_FAILED, text.trim() || 'Invalid username or password');
         }
         if (outcome === 'blocked') throw new LvError(ERR.LOGIN_BLOCKED, 'Captcha, MFA or account lock detected');
+
+        // The response normally arrives before the dashboard renders; the grace period only matters if it never comes.
+        const termsState = await Promise.race([terms, page.waitForTimeout(TERMS_GRACE_MS).then(() => null)]);
+        if (outcome === 'terms' || termsState?.tos_accepted === false) {
+            throw new LvError(
+                ERR.TERMS_NOT_ACCEPTED,
+                'Landvoice License Agreement not accepted for this account. Log in once manually and accept it.',
+            );
+        }
 
         // Onboarding tour appears after login; dismissed only if it blocks a click.
         await page.addLocatorHandler(page.locator(SEL.tourFinish), (btn) => btn.click(), { noWaitAfter: true, times: 1 });

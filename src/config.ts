@@ -3,6 +3,9 @@ export const LOGIN_URL = `${BASE_URL}/signin`;
 export const DOWNLOAD_TIMEOUT_MS = 180_000;
 export const DATE_RANGE = 'Today';
 export const EXPORT_TEMPLATE = 'Everything';
+/** Returns {"tos_accepted": boolean}; false means the license agreement modal blocks the app. */
+export const TERMS_API = '/api/core/terms';
+export const TERMS_GRACE_MS = 5_000;
 
 interface LeadListSpec {
     name: string;
@@ -33,6 +36,7 @@ export const SEL = {
     loginError: 'text=/Invalid username or password/i',
     loginBlocked: 'iframe[src*="captcha"], :text-matches("verification code|account (is )?locked", "i")',
 
+    termsModal: 'text=/License And Service Agreement/i',
     tourFinish: 'button:has-text("Finish")',
     listCount: 'text=/Showing \\d+ to \\d+ of [\\d,]+/i',
     noResults: 'text=/reset\\s*your\\s*filters/i',

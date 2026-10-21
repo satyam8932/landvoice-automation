@@ -10,6 +10,7 @@ export interface Account {
 export interface Input {
     email?: string;
     password?: string;
+    label?: string;
     accounts?: Partial<Account>[];
     lists?: string[];
     concurrency?: number;

@@ -78,7 +78,7 @@ async function runAccount(
                 return exportAccount(browser, account, pending, opts, attempt, (done) => exports.push(done));
             },
             maxRetries,
-            (err, attempt) => log.warning(`[${maskEmail(account.email)}] attempt ${attempt} failed (${err.code}), retrying`),
+            (err, attempt) => log.warning(`[${maskEmail(account.email)}] attempt ${attempt} failed (${err.code}: ${err.message.split('\n')[0]}), retrying`),
         );
         status = exports.some((e) => e.status === 'EXPORTED') ? 'EXPORTED' : 'NO_ENTRIES';
     } catch (raw) {
@@ -124,7 +124,7 @@ function parseLists(names: string[] | undefined): LeadList[] {
 }
 
 function parseAccounts(input: Input): Account[] {
-    const list = input.accounts?.length ? input.accounts : input.email ? [{ email: input.email, password: input.password }] : [];
+    const list = input.accounts?.length ? input.accounts : input.email ? [{ email: input.email, password: input.password, label: input.label }] : [];
     if (!list.length) throw new LvError(ERR.INVALID_INPUT, 'Provide "email" + "password" or a non-empty "accounts" array');
 
     const seen = new Set<string>();

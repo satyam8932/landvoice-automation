@@ -16,6 +16,12 @@
       "isSecret": true,
       "description": "Landvoice password for 'email'."
     },
+    "label": {
+      "title": "Label",
+      "type": "string",
+      "editor": "textfield",
+      "description": "Optional client name for the single account; echoed back as 'label' and used in CSV file names."
+    },
     "accounts": {
       "title": "Accounts",
       "type": "array",
